@@ -7,6 +7,6 @@ pretrained_models/
 figures/
 results/
 *.m4a
-*/__pycache__/*
+__pycache__/
 
 
