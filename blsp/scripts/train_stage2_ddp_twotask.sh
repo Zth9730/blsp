@@ -12,13 +12,15 @@ llama_path=checkpoints/stage1/
 whisper_path=pretrained_models/whisper-small
 
 DATA_ROOT=data/stage2/labels
-SAVE_ROOT=checkpoints/mms_continue2/
+DATA_ROOT2=data/only_asr
+SAVE_ROOT=checkpoints/whisper_continue_asr_interleave/
 
 mkdir -p $SAVE_ROOT
 
 python -m torch.distributed.run --nproc_per_node=2 blsp/train_stage2.py \
     --deepspeed blsp/config/dp_config_zero1.json \
     --data $DATA_ROOT \
+    --data2 $DATA_ROOT2 \
     --output_dir ${SAVE_ROOT} \
     --manifest_files "*.jsonl" \
     --instruction "Continue the following text in a coherent and engaging style with less than 40 words." \
@@ -32,8 +34,8 @@ python -m torch.distributed.run --nproc_per_node=2 blsp/train_stage2.py \
     --max_grad_norm 1.0 \
     --warmup_steps 1000 \
     \
-    --per_device_train_batch_size 4 \
-    --gradient_accumulation_steps 24 \
+    --per_device_train_batch_size 8 \
+    --gradient_accumulation_steps 12 \
     --num_train_epochs 1 \
     \
     --llama_model $llama_path \

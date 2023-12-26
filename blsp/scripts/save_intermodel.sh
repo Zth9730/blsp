@@ -12,11 +12,11 @@ llama_path=checkpoints/stage1/
 whisper_path=pretrained_models/whisper-small
 
 DATA_ROOT=data/stage2/labels
-SAVE_ROOT=checkpoints/mms_continue2/
+SAVE_ROOT=checkpoints/mms_continue/
 
 mkdir -p $SAVE_ROOT
 
-python -m torch.distributed.run --nproc_per_node=2 blsp/train_stage2.py \
+python -m torch.distributed.run --nproc_per_node=1 --master_port 52071 blsp/save_intermodel.py \
     --deepspeed blsp/config/dp_config_zero1.json \
     --data $DATA_ROOT \
     --output_dir ${SAVE_ROOT} \
@@ -43,4 +43,5 @@ python -m torch.distributed.run --nproc_per_node=2 blsp/train_stage2.py \
     \
     --logging_steps 20 \
     --save_steps 200 \
-    --save_total_limit 1
+    --save_total_limit 1\
+    --resume_from_checkpoint checkpoints/mms_continue/checkpoint-1200

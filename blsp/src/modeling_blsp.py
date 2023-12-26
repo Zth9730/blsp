@@ -3,19 +3,24 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
 
 from transformers import PreTrainedModel, LlamaForCausalLM
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers import LlamaConfig, WhisperConfig
+from transformers.deepspeed import is_deepspeed_zero3_enabled
+
+from transformers import Wav2Vec2Model, AutoProcessor
 
 try:
     from .configuration_blsp import BlspConfig
     from .modeling_whisper_encoder import WhisperEncoder
+    from .moe_layer import MoELayer
 except:
     from configuration_blsp import BlspConfig
     from modeling_whisper_encoder import WhisperEncoder
-
+    from moe_layer import MoELayer
 
 def lengths_to_padding_mask(lens):
     bsz, max_lens = lens.size(0), torch.max(lens).item()
@@ -76,35 +81,104 @@ class Adapter(nn.Module):
         self,
         in_dim: int,
         mid_dim: int,
+        moe: False
     ):
         super(Adapter, self).__init__()
 
-        self.fc1 = nn.Linear(in_dim, mid_dim, bias=False)
-        self.fc2 = nn.Linear(mid_dim, in_dim, bias=False)
-        self.activation = nn.GELU()
+        self.moe = moe
+        if not moe:
+            self.activation = nn.GELU()
+            self.fc1 = nn.Linear(in_dim, mid_dim, bias=False)
+            self.fc2 = nn.Linear(mid_dim, in_dim, bias=False)
+        else:
+            self.expert1 = nn.Linear(in_dim, mid_dim, bias=False)
+            self.moe_layer1 = MoELayer(hidden_size=in_dim, num_experts=4, expert=self.expert1, 
+                     route_method='gate-token', vocab_size=None, hash_list=None)
+            self.expert2 = nn.Linear(mid_dim, in_dim, bias=False)
+            self.moe_layer2 = MoELayer(hidden_size=mid_dim, num_experts=4, expert=self.expert2, 
+                     route_method='gate-token', vocab_size=None, hash_list=None)
+            self.activation = nn.GELU()
 
     def forward(self, x):
         residual = x
-        x = self.fc1(x)
-        x = self.activation(x)
-        x = self.fc2(x)
+        if not self.moe:
+            x = self.fc1(x)
+            x = self.activation(x)
+            x = self.fc2(x)
+            return residual + x, 0.0
+        else:
+            x, balance_loss1, gate_load1 = self.moe_layer1(x, None, None)
+            x = self.activation(x)
+            x, balance_loss2, gate_load2 = self.moe_layer2(x, None, None)
+        return x, balance_loss1 + balance_loss2
+            
+class PartiallyTrainedEmbedding(nn.Embedding):
+    def __init__(self, new_embedding_nums, num_embeddings, embedding_dim, padding_idx=None, **kwargs):
+        super().__init__(num_embeddings, embedding_dim, padding_idx, **kwargs)
+        self.new_weight = nn.Parameter(torch.randn(new_embedding_nums, embedding_dim), requires_grad=True)
+        torch.nn.init.trunc_normal_(self.new_weight.data,mean=0.0,std=0.02)
+        
+    def forward(self, input):
 
-        return residual + x
+        mask = input >= self.num_embeddings
+        # You may want to optimize it, you could probably get away without copy, though
+        # I'm not currently sure how
+        pretrained_batch = input.clone()
+        pretrained_batch[mask] = 0
+        
+        embedded_batch = F.embedding(
+                    pretrained_batch, self.weight, self.padding_idx, self.max_norm,
+                    self.norm_type, self.scale_grad_by_freq, self.sparse)
+        
+        # Every token without representation has to be brought into appropriate range
+        non_pretrained_batch = input.clone()
+        non_pretrained_batch -= self.num_embeddings
+        # Zero out the ones which already have pretrained embedding
+        non_pretrained_batch[~mask] = 0
+        non_pretrained_embedded_batch = F.embedding(
+                    non_pretrained_batch, self.new_weight, self.padding_idx, self.max_norm,
+                    self.norm_type, self.scale_grad_by_freq, self.sparse)
+        # And finally change appropriate tokens from placeholder embedding created by
+        # pretrained into trainable embeddings.
+        embedded_batch[mask] = non_pretrained_embedded_batch[mask]
+        return embedded_batch
 
+class PartiallyTrainedLMHead(nn.Linear):
+    def __init__(self, new_embedding_nums, embedding_dim, num_embeddings, **kwargs):
+        super().__init__(embedding_dim, num_embeddings, **kwargs)
+        self.new_weight = nn.Parameter(torch.randn(new_embedding_nums, embedding_dim), requires_grad=True)
+        self.new_bias =  self.register_parameter('new_bias', None)
+        torch.nn.init.trunc_normal_(self.new_weight.data,mean=0.0,std=0.02)
+    def forward(self, input):
+        x1 = F.linear(input, self.weight, self.bias)
+        x2 = F.linear(input, self.new_weight, self.new_bias)
+        return torch.cat([x1, x2], dim=-1)
 
 class BlspModel(PreTrainedModel):
     config_class = BlspConfig
     base_model_prefix = "blsp"
 
-    def __init__(self, config: BlspConfig):
+    def __init__(self, config: BlspConfig, new_embedding_nums):
         super().__init__(config)
         self.whisper_config = WhisperConfig(**config.whisper_config)
         self.llama_config = LlamaConfig(**config.llama_config)
+        if config.speech_encoder == 'whisper':
+            self.whisper_model = WhisperEncoder(self.whisper_config)
+            in_d = self.whisper_config.d_model
+        elif config.speech_encoder == 'mms':
+            self.whisper_model = Wav2Vec2Model.from_pretrained("/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/pretrained_models/mms-1b", _fast_init=not is_deepspeed_zero3_enabled())
+            in_d = self.whisper_model.config.hidden_size
 
-        self.whisper_model = WhisperEncoder(self.whisper_config)
-        self.llama_model = LlamaForCausalLM(self.llama_config)
-
-        in_d = self.whisper_config.d_model
+        self.llama_model = LlamaForCausalLM.from_pretrained('/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/pretrained_models/llama2-7b-hf', _fast_init=not is_deepspeed_zero3_enabled())
+        selected_params = ['model.embed_tokens.weight', 'lm_head.weight']
+        state_dict = self.llama_model.state_dict()
+        selected_state_dict = {k: v for k, v in state_dict.items() if k in selected_params}
+        if new_embedding_nums > 0:
+            self.llama_model.model.embed_tokens = PartiallyTrainedEmbedding(new_embedding_nums, *self.llama_model.model.embed_tokens.weight.shape, self.llama_model.model.embed_tokens.padding_idx)
+            self.llama_model.lm_head = PartiallyTrainedLMHead(new_embedding_nums, *self.llama_model.model.embed_tokens.weight.shape[::-1], bias=False)
+            self.llama_model.load_state_dict(selected_state_dict, strict=False)
+            self.llama_model.config.vocab_size += new_embedding_nums
+            self.llama_model.vocab_size += new_embedding_nums
         out_d = self.llama_config.hidden_size
         self.subsampler = Conv1dSubsampler(
             in_d,
@@ -113,7 +187,7 @@ class BlspModel(PreTrainedModel):
             [int(k) for k in config.conv_kernel_sizes.split(",")],
         )
         self.speech_ln = torch.nn.LayerNorm(out_d, 1e-5, True)
-        self.adapter = Adapter(out_d, config.adapter_inner_dim)
+        self.adapter = Adapter(out_d, config.adapter_inner_dim, moe=config.moe)
     
     def forward(
         self,
@@ -133,53 +207,67 @@ class BlspModel(PreTrainedModel):
         suffix_attention_mask: Optional[torch.LongTensor] = None,
         suffix_labels: Optional[torch.LongTensor] = None,
     ):
+
         ### 1. forward speech
-        speech_embeds, speech_attention_mask = self.get_speech_features(speech_values, speech_attention_mask)
+        speech_embeds, moe_loss, speech_attention_mask = self.get_speech_features(speech_values, speech_attention_mask)
         speech_labels = torch.LongTensor(speech_embeds.size(0), speech_embeds.size(1)).fill_(-100).to(speech_embeds.device)
 
         ### 2. forward llama
-        prefix_embeds = self.llama_model.get_input_embeddings()(input_ids)
-        suffix_embeds = self.llama_model.get_input_embeddings()(suffix_input_ids)
+        prefix_embeds = self.llama_model.model.embed_tokens(input_ids)
+        suffix_embeds = self.llama_model.model.embed_tokens(suffix_input_ids)
         
         inputs_embeds = torch.cat([prefix_embeds, speech_embeds, suffix_embeds], dim=1)
         attention_mask = torch.cat([attention_mask, speech_attention_mask, suffix_attention_mask], dim=1)
         labels = torch.cat([labels, speech_labels, suffix_labels], dim=1)
 
-        return self.llama_model(
+        output = self.llama_model(
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
             return_dict=True,
             labels=labels,
         )
+        output['loss'] = output['loss'] + moe_loss
+        return output
+        
 
 
     def get_speech_features(self, speech_values, speech_attention_mask):
         w2v_args = {
-            "input_features": speech_values,
+            "input_values": speech_values,
             "attention_mask": speech_attention_mask,
         }
+
         output = self.whisper_model(**w2v_args)
         speech_embeds = output.last_hidden_state # B x T x C
-        speech_lengths = output.output_lengths
+        if isinstance(self.whisper_model, WhisperEncoder):
+            speech_lengths = output.output_lengths
+        else:
+            input_lengths = speech_attention_mask.sum(-1)
+            speech_lengths = self.whisper_model._get_feat_extract_output_lengths(input_lengths)
 
         speech_embeds, speech_lengths = self.subsampler(speech_embeds, speech_lengths)
         speech_embeds = speech_embeds.transpose(0,1) # T x B x C -> B x T x C
         speech_padding_mask = lengths_to_padding_mask(speech_lengths)
         speech_atts = ~speech_padding_mask
 
-        speech_embeds = self.adapter(speech_embeds)
+        speech_embeds, moe_loss = self.adapter(speech_embeds)
         speech_embeds = self.speech_ln(speech_embeds)
 
-        return speech_embeds, speech_atts
+        return speech_embeds, moe_loss, speech_atts
 
     @torch.no_grad()
     def generate(
         self,
         input_ids,
         suffix_input_ids,
+        labels=None,
+        suffix_labels=None,
+        attention_mask=None,
+        suffix_attention_mask=None,
         speech_values=None,
         speech_attention_mask=None,
-        generation_config=None
+        generation_config=None,
+        **kwags,
     ):
         inputs_embeds, attention_mask = [], []
 
@@ -189,7 +277,7 @@ class BlspModel(PreTrainedModel):
         attention_mask.append(prefix_attns)
 
         if speech_values is not None:
-            speech_embeds, speech_attention_mask = self.get_speech_features(speech_values, speech_attention_mask)
+            speech_embeds, _, speech_attention_mask = self.get_speech_features(speech_values, speech_attention_mask)
             inputs_embeds.append(speech_embeds)
             attention_mask.append(speech_attention_mask)
 
@@ -204,7 +292,8 @@ class BlspModel(PreTrainedModel):
         return self.llama_model.generate(
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
-            generation_config=generation_config
+            generation_config=generation_config,
+            **kwags
         )
     
     @torch.no_grad()
@@ -214,7 +303,6 @@ class BlspModel(PreTrainedModel):
         generation_config=None
     ):
         inputs_embeds = []
-
         for h in history:
             if len(h) == 1:
                 ### text
@@ -224,14 +312,15 @@ class BlspModel(PreTrainedModel):
             elif len(h) == 2:
                 ### speech
                 speech_values, speech_attention_mask = h[0], h[1]
-                speech_embeds, _ = self.get_speech_features(speech_values, speech_attention_mask)
+                speech_embeds, _, _ = self.get_speech_features(speech_values, speech_attention_mask)
                 inputs_embeds.append(speech_embeds)
             else:
                 raise NotImplementedError
-        
         inputs_embeds = torch.cat(inputs_embeds, dim=1)
 
         return self.llama_model.generate(
             inputs_embeds=inputs_embeds,
             generation_config=generation_config
         )
+
+

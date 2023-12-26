@@ -8,14 +8,14 @@ export NCCL_IB_GID_INDEX=3
 export PATH=/usr/local/cuda/bin:$PATH
 
 
-llama_path=$llama_path
+llama_path=pretrained_models/llama2-7b-hf
 
-DATA_ROOT=$DATA_ROOT
-SAVE_ROOT=$SAVE_ROOT
+DATA_ROOT=/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/data/stage1
+SAVE_ROOT=/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/checkpoints/stage1
 
 mkdir -p $SAVE_ROOT
 
-python -m torch.distributed.run --nproc_per_node=8 blsp/train_stage1.py \
+python -m torch.distributed.run --nproc_per_node=4 blsp/train_stage1.py \
     --deepspeed blsp/config/dp_config_zero1.json \
     --data $DATA_ROOT \
     --output_dir ${SAVE_ROOT} \

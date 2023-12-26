@@ -22,8 +22,11 @@ def process(args):
                 audio = os.path.join(input_dir, "LibriSpeech", split, f"{spk_id}", f"{chapter_no}", sample_id+".flac")
                 text = normalizer(utt)
                 json_string = json.dumps({
+                    "task": "ASR",
                     "audio": audio,
-                    "text": text
+                    "ground_truth": text,
+                    "audio_language": "EN",
+                    "text_language": "EN"
                 })
                 fout.write(json_string + "\n")
 
@@ -34,7 +37,7 @@ if __name__ == "__main__":
                         help="Path to the input directory", required=True)
     parser.add_argument("--output_file", type=str, default=None,
                         help="Path to the output manifest file", required=True)
-    parser.add_argument("--splits", type=str, default="train-clean-100,train-clean-360,train-other-500",
+    parser.add_argument("--splits", type=str, default="test-other",
                         help="the splits")
     
     args = parser.parse_args()

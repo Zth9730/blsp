@@ -4,30 +4,184 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, BinaryIO
 import fire
 import soundfile as sf
+import io
+from petrel_client.client import Client
+
+try:
+    from .owntoken import WLT, SPECIA_TOKENS, TASK_SPECIFIC_TAG
+except:
+    from owntoken import WLT, SPECIA_TOKENS, TASK_SPECIFIC_TAG
 
 import numpy as np
 import torch
 import random
 import datasets
 from dataclasses import dataclass
-
+import subprocess
 from transformers import LlamaTokenizer, WhisperFeatureExtractor
+from datasets import IterableDataset
 
 logger = logging.getLogger(__name__)
 
+class MyClient(object):
+    def __init__(self):
+        self.client = Client('~/petreloss.conf')
+    
+    def get (self, key, enable_stream=False):
+        index = key.find("/")
+        bucket = key[:index]
+        new_key = key[index+1:]
+        if bucket == "asr" or bucket == "exp":
+            return self.client.get("asr:s3://{}/".format(bucket) + new_key, no_cache=True, enable_stream=enable_stream)
+        elif bucket == "youtubeBucket":
+            return self.client.get("youtube:s3://{}/".format(bucket) + new_key, no_cache=True, enable_stream=enable_stream)
+        elif bucket == 's3:':
+            return self.client.get("asr:{}".format(key), no_cache=True, enable_stream=enable_stream)
+        else:
+            with open(key, 'rb') as f:
+                return f.read()
 
-def process_dataset(batch, tokenizer, instruction):
+
+def process_dataset_multitask(batch, tokenizer):
+    # tag: SOT-AL-TT-TL-TS-WLT 
+    client = MyClient()
+    audio_path = batch["audio"]
+    try:
+        s3b = client.get(audio_path)
+        with io.BytesIO(s3b) as fobj: 
+            info = sf.info(fobj)
+            if info.duration >= 30 and batch['task'] in ["ASR", "S2TT"]:
+                is_readable = False 
+            else:
+                is_readable = True
+    except:
+        is_readable = False
+
+    input_ids = [tokenizer.bos_token_id] + tokenizer("<speech>").input_ids[2:]
+    attention_mask = [1] * len(input_ids)
+    labels = [-100] * len(input_ids)    
+
+    # end of speech tag: </speech>
+    suffix_input_ids = tokenizer('</speech>').input_ids[2:]
+    suffix_attention_mask = [1] * len(suffix_input_ids)
+    suffix_labels = [-100] * len(suffix_input_ids)
+    
+    # multi-task tag
+    multitask_tag_ids = []
+    tag_map = TASK_SPECIFIC_TAG[batch['task']]
+
+    sot_ids = tokenizer(tag_map['SOT']).input_ids[2:]
+    multitask_tag_ids += sot_ids
+    audio_language = tokenizer(tag_map['AL'][batch['audio_language']]).input_ids[2:]
+    multitask_tag_ids += audio_language
+    task_tag = tokenizer(tag_map['TT']).input_ids[2:]
+    multitask_tag_ids += task_tag
+    text_language = tokenizer(tag_map['TL'][batch['text_language']]).input_ids[2:]
+    multitask_tag_ids += text_language
+    timestamps = tokenizer(tag_map['TS']).input_ids[2:]
+    multitask_tag_ids += timestamps
+    wlt = tokenizer(WLT[batch['task']]).input_ids[2:]
+    multitask_tag_ids += wlt
+    
+    suffix_input_ids += multitask_tag_ids
+    suffix_attention_mask += [1] * len(multitask_tag_ids)
+    # suffix_labels = [-100] * len(suffix_input_ids)
+    suffix_labels += multitask_tag_ids
+
+    # ground_truth
+    ground_truth_ids = tokenizer(batch["ground_truth"]).input_ids[1:] + [tokenizer.eos_token_id]
+    suffix_input_ids += ground_truth_ids
+    suffix_attention_mask += [1] * len(ground_truth_ids)
+    suffix_labels += ground_truth_ids
+    
+    batch["input_ids"] = input_ids
+    batch["attention_mask"] = attention_mask
+    batch["labels"] = labels
+    batch["suffix_input_ids"] = suffix_input_ids
+    batch["suffix_attention_mask"] = suffix_attention_mask
+    batch["suffix_labels"] = suffix_labels
+    batch["audio_path"] = audio_path
+    batch["is_readable"] = is_readable
+
+    return batch
+
+def process_dataset_multitask_test(batch, tokenizer):
+    # tag: SOT-AL-TT-TL-TS-WLT 
+    client = MyClient()
+    audio_path = batch["audio"]
+    try:
+        s3b = client.get(audio_path)
+        with io.BytesIO(s3b) as fobj: 
+            info = sf.info(fobj)
+            if info.duration >= 30 and batch['task'] in ["ASR", "S2TT"]:
+                is_readable = False 
+            else:
+                is_readable = True
+    except:
+        is_readable = False
+
+    input_ids = [tokenizer.bos_token_id] + tokenizer("<speech>").input_ids[2:]
+    attention_mask = [1] * len(input_ids)
+    
+    
+    # end of speech tag: </speech>
+    suffix_input_ids = tokenizer('</speech>').input_ids[2:]
+    suffix_attention_mask = [1] * len(suffix_input_ids)
+    
+    # multi-task tag
+    multitask_tag_ids = []
+    tag_map = TASK_SPECIFIC_TAG[batch['task']]
+
+    sot_ids = tokenizer(tag_map['SOT']).input_ids[2:]
+    multitask_tag_ids += sot_ids
+    audio_language = tokenizer(tag_map['AL'][batch['audio_language']]).input_ids[2:]
+    multitask_tag_ids += audio_language
+    task_tag = tokenizer(tag_map['TT']).input_ids[2:]
+    multitask_tag_ids += task_tag
+    text_language = tokenizer(tag_map['TL'][batch['text_language']]).input_ids[2:]
+    multitask_tag_ids += text_language
+    timestamps = tokenizer(tag_map['TS']).input_ids[2:]
+    multitask_tag_ids += timestamps
+    wlt = tokenizer(WLT[batch['task']]).input_ids[2:]
+    multitask_tag_ids += wlt
+    
+    suffix_input_ids += multitask_tag_ids
+    suffix_attention_mask += [1] * len(multitask_tag_ids)
+
+    # ground_truth
+    ground_truth_ids = tokenizer(batch["ground_truth"]).input_ids[1:] + [tokenizer.eos_token_id]
+
+    batch["input_ids"] = input_ids
+    batch["attention_mask"] = attention_mask
+    batch["suffix_input_ids"] = suffix_input_ids
+    batch["suffix_attention_mask"] = suffix_attention_mask
+    batch["audio_path"] = audio_path
+    batch["is_readable"] = is_readable
+    batch["ground_truth_ids"] = ground_truth_ids
+    return batch
+
+def process_dataset(batch, tokenizer, instructions):
+    client = MyClient()
+    if batch['task'] == "asr": 
+        instructions = instructions.split('/')[1:]
+        instruction = random.choice(instructions)
+    else:
+        instruction = instructions.split('/')[0]
     input_ids = tokenizer(f"###[Human]:{instruction}").input_ids
     attention_mask = [1] * len(input_ids)
     labels = [-100] * len(input_ids)
 
     audio_path = batch["audio"]
     try:
-        info = sf.info(audio_path)
-        is_readable = True
+        s3b = client.get(audio_path)
+        with io.BytesIO(s3b) as fobj: 
+            info = sf.info(fobj)
+            if info.duration >= 30:
+                is_readable = False
+            else:
+                is_readable = True
     except:
         is_readable = False
-
 
     suffix_input_ids, suffix_attention_mask, suffix_labels = [], [], []
     ### \n\n\n###[Assistant]:
@@ -40,7 +194,6 @@ def process_dataset(batch, tokenizer, instruction):
     suffix_input_ids += new_input_ids
     suffix_attention_mask += [1] * len(new_input_ids)
     suffix_labels += new_input_ids
-    
 
     batch["input_ids"] = input_ids
     batch["attention_mask"] = attention_mask
@@ -58,31 +211,51 @@ def load_speech_text_paired_dataset(
     manifest_files="",
     tokenizer=None,
     instruction="",
-    num_proc=8,
+    num_proc=64,
+    sort=False,
+    shuffle=True,
+    iterable=False,
+    multitask=True,
+    training=True,
 ):
     if os.path.exists(os.path.join(dataroot, f"processed_{manifest_files}".replace("*", "all"))):
         logger.warning("load processed dataset")
+        if iterable:
+            dataset = IterableDataset.load_from_disk(os.path.join(dataroot, f"processed_{manifest_files}".replace("*", "all")))
+            return dataset
         dataset = datasets.load_from_disk(os.path.join(dataroot, f"processed_{manifest_files}".replace("*", "all")))
+        if shuffle:
+            dataset = dataset.shuffle(seed=42)
         return dataset
     
     logger.warning(f"load dataset from scratch from {dataroot}/{manifest_files}")
-    
-    manifest_files_list = manifest_files.split(",")
 
+    manifest_files_list = manifest_files.split(",")
     raw_dataset = datasets.load_dataset(
         dataroot, data_files=manifest_files_list, split="train", streaming=False
     )
 
-    dataset = raw_dataset.map(
-        process_dataset,
-        fn_kwargs={
-            "tokenizer": tokenizer,
-            "instruction": instruction
-        },
-        remove_columns=raw_dataset.column_names,
-        load_from_cache_file=False,
-        num_proc=num_proc,
-    )
+    if multitask:
+        dataset = raw_dataset.map(
+            process_dataset_multitask if training else process_dataset_multitask_test,
+            fn_kwargs={
+                "tokenizer": tokenizer,
+            },
+            remove_columns=raw_dataset.column_names,
+            load_from_cache_file=False,
+            num_proc=128,
+        )
+    else:
+        dataset = raw_dataset.map(
+            process_dataset,
+            fn_kwargs={
+                "tokenizer": tokenizer,
+                "instructions": instruction
+            },
+            remove_columns=raw_dataset.column_names,
+            load_from_cache_file=False,
+            num_proc=num_proc,
+        )       
 
     def is_readable(flag):
         return flag
@@ -143,9 +316,20 @@ def get_waveform(
         import soundfile as sf
     except ImportError:
         raise ImportError("Please install soundfile to load WAV/FLACC/OGG/MP3 audios")
-    waveform, sample_rate = sf.read(
-        path_or_fp, dtype="float32", always_2d=True, frames=frames, start=start
-    )
+    client = MyClient()
+    s3b = client.get(path_or_fp)
+    with io.BytesIO(s3b) as fobj:
+        waveform, sample_rate = sf.read(
+            fobj, dtype="float32", always_2d=True, frames=frames, start=start
+        )
+    if len(waveform) / sample_rate > 30:
+        size = len(waveform)
+        target_size = 30 * sample_rate
+        diff = size - target_size
+        start, end = 0, target_size
+        start = np.random.randint(0, diff + 1)
+        end = size - diff + start
+        waveform = waveform[start:end]
     waveform = waveform.T
 
     waveform, sample_rate = convert_waveform(waveform, sample_rate, to_mono=mono, to_sample_rate=output_sample_rate)
@@ -228,12 +412,22 @@ class SpeechTextPairedDataCollator:
         raw_speech = [
             get_waveform(sample["audio_path"], output_sample_rate=self.sampling_rate) for sample in samples
         ]
-        speech_inputs = self.extractor(
-            raw_speech, 
-            sampling_rate=self.sampling_rate, 
-            return_attention_mask=True,
-            return_tensors="pt"
-        )
+        if isinstance(self.extractor, WhisperFeatureExtractor):
+            speech_inputs = self.extractor(
+                raw_speech, 
+                sampling_rate=self.sampling_rate, 
+                return_attention_mask=True,
+                return_tensors="pt"
+            )
+        else:
+            speech_inputs = self.extractor(
+                raw_speech, 
+                padding=True,
+                sampling_rate=self.sampling_rate, 
+                return_attention_mask=True,
+                return_tensors="pt"
+            )
+            speech_inputs['input_features'] = speech_inputs['input_values']
 
         return {
             "input_ids": input_ids,
@@ -252,9 +446,11 @@ def offline_process(
     manifest_files="",
     lm_path="",
     instruction="",
-    num_proc=8,
+    num_proc=128,
 ):
     text_tokenizer = LlamaTokenizer.from_pretrained(lm_path)
+    text_tokenizer.add_tokens(SPECIA_TOKENS)
+    text_tokenizer.add_tokens([val for val in WLT.values()])
 
     dataset = load_speech_text_paired_dataset(
         dataroot,
@@ -275,3 +471,4 @@ if __name__ == "__main__":
     fire.Fire({
         "offline": offline_process,
     })
+    

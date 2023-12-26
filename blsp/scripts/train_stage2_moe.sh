@@ -11,12 +11,12 @@ export PATH=/usr/local/cuda/bin:$PATH
 llama_path=checkpoints/stage1/
 whisper_path=pretrained_models/whisper-small
 
-DATA_ROOT=data/stage2/labels
-SAVE_ROOT=checkpoints/mms_continue2/
+DATA_ROOT=data/asr_and_continue
+SAVE_ROOT=checkpoints/moe_2/
 
 mkdir -p $SAVE_ROOT
 
-python -m torch.distributed.run --nproc_per_node=2 blsp/train_stage2.py \
+python -m torch.distributed.run --nproc_per_node=4 blsp/train_stage2.py \
     --deepspeed blsp/config/dp_config_zero1.json \
     --data $DATA_ROOT \
     --output_dir ${SAVE_ROOT} \
@@ -32,7 +32,7 @@ python -m torch.distributed.run --nproc_per_node=2 blsp/train_stage2.py \
     --max_grad_norm 1.0 \
     --warmup_steps 1000 \
     \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 8 \
     --gradient_accumulation_steps 24 \
     --num_train_epochs 1 \
     \

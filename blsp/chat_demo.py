@@ -75,8 +75,8 @@ class ChatHistory(object):
 def parse_args():
     parser = argparse.ArgumentParser(description="Chat Demo")
     parser.add_argument(
-        "--blsp_model", type=str, default=None,
-        help="Path to the blsp model", required=True
+        "--blsp_model", type=str, default='pretrained_models/damo/blsp_lslm_7b',
+        help="Path to the blsp model"
     )
     ### args for generation
     parser.add_argument(
@@ -258,5 +258,6 @@ with gr.Blocks() as demo:
     )
     clear.click(gradio_reset, [], [chatbot, txt, input_audio_mic, btn], queue=False)
 
-demo.queue()
-demo.launch(share=False, enable_queue=True)
+# os.environ["no_proxy"] = "localhost,127.0.0.1,::1"
+    
+demo.launch(share=True,debug=True)

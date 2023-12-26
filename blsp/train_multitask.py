@@ -46,11 +46,11 @@ from src.speech_text_paired_dataset import load_speech_text_paired_dataset, Spee
 from src.modeling_blsp import BlspModel
 from src.modeling_whisper_encoder import WhisperEncoder
 from src.configuration_blsp import BlspConfig
-
+from src.owntoken import SPECIA_TOKENS, WLT
 
 logger = logging.getLogger(__name__)
 
-
+import os
 @dataclass
 class ModelArguments:
     """
@@ -101,6 +101,8 @@ def main():
     # We now keep distinct sets of args, for a cleaner separation of concerns.
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+
+    # training_args.local_rank = int(os.environ["LOCAL_RANK"])
 
     # 2. Setup logging
     logging.basicConfig(
@@ -158,6 +160,10 @@ def main():
 
     # 4. Load tokenizer
     tokenizer = LlamaTokenizer.from_pretrained(model_args.llama_model)
+    new_embedding_nums = 0
+    new_embedding_nums += tokenizer.add_special_tokens({'additional_special_tokens': SPECIA_TOKENS})
+    new_embedding_nums += tokenizer.add_special_tokens({'additional_special_tokens': [val for val in WLT.values()]})
+
     if blsp_config.speech_encoder == 'whisper':
         extractor = WhisperFeatureExtractor.from_pretrained(model_args.whisper_model)
     elif blsp_config.speech_encoder == 'mms':
@@ -196,14 +202,23 @@ def main():
     # The .from_pretrained methods guarantee that only one local process can concurrently
 
 
-    model = BlspModel(blsp_config)
-    # model.whisper_model = WhisperEncoder.from_pretrained(model_args.whisper_model)
-    model.llama_model = LlamaForCausalLM.from_pretrained(model_args.llama_model, _fast_init=not is_deepspeed_zero3_enabled())
+    model = BlspModel(blsp_config, new_embedding_nums)
 
-    for name, param in model.whisper_model.named_parameters():
-        param.requires_grad = False
-    for name, param in model.llama_model.named_parameters():
-        param.requires_grad = False
+    # model.whisper_model = WhisperEncoder.from_pretrained(model_args.whisper_model)
+    # model.llama_model = LlamaForCausalLM.from_pretrained(model_args.llama_model, _fast_init=not is_deepspeed_zero3_enabled())
+    
+    # model.llama_model.resize_token_embeddings(len(tokenizer))
+    
+    
+    if blsp_config.stage == 'multi-task':
+        for name, param in model.llama_model.named_parameters():
+            param.requires_grad = False
+        model.llama_model.model.embed_tokens.new_weight.requires_grad = True
+        model.llama_model.lm_head.new_weight.requires_grad = True
+        
+    elif blsp_config.stage == 'chat':
+        for name, param in model.whisper_model.named_parameters():
+            param.requires_grad = False
 
     # 6. Define data collator
     data_collator = SpeechTextPairedDataCollator(
@@ -214,6 +229,7 @@ def main():
 
 
     # 7. Initialize Trainer
+
     trainer = Trainer(
         model=model,
         args=training_args,

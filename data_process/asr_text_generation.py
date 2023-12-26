@@ -95,7 +95,7 @@ def continue_writing(
     lab_dir,
     nshard=24,
     rank=0,
-    batch_size=8
+    batch_size=32
 ):
     accelerator = Accelerator()
     logger.info(accelerator.state)

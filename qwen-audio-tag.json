@@ -1,0 +1,842 @@
+{
+    "ASR": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|transcribe|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "transcription"
+    },
+    "S2TT": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|translate|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "translation"
+    },
+    "OSR": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|transcribe|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "multi speaker transcription"
+    },
+    "DASR": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|transcribe|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "dialect transcription"
+    },
+    "SRWT": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|transcribe|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|timestamps|>",
+        "WLT": "world level transcription"
+    },
+    "DID": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "dialect info"
+    },
+    "LID": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "language info"
+    },
+    "SGC": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "speaker info"
+    },
+    "ER": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "emotion"
+    },
+    "SV": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "speaker info"
+    },
+    "SD": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|timestamps|>",
+        "WLT": "speaker info"
+    },
+    "SER": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|transcribe|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|timestamps|>",
+        "WLT": "transcription with entity"
+    },
+    "KS": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "speech classification"
+    },
+    "IC": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "speech semantic info"
+    },
+    "SF": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "speech semantic info"
+    },
+    "SAP": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "speaker info"
+    },
+    "ACC": {
+        "SOT": "<|startofanalysis|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|caption|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "audio info"
+    },
+    "SEC": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "sound envent"
+    },
+    "ASC": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "scene"
+    },
+    "SED": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|timestamps|>",
+        "WLT": "sound envent"
+    },
+    "AQA": {
+        "SOT": "<|startofanalysis|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|question-answer|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "audio info"
+    },
+    "SID": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "speaker info"
+    },
+    "SMER": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "emotion"
+    },
+    "MC": {
+        "SOT": "<|startofanalysis|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|caption|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "song info"
+    },
+    "MIC": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "song info"
+    },
+    "MNA": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "song info"
+    },
+    "MGR": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "song info"
+    },
+    "MR": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "song classification"
+    },
+    "MQA": {
+        "SOT": "<|startofanalysis|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|question-answer|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "song info"
+    },
+    "VSC": {
+        "SOT": "<|startoftranscripts|>",
+        "AL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TT": "<|analysis|>",
+        "TL": {
+            "ZH": "<|zh|>",
+            "EN": "<|en|>",
+            "DE": "<|de|>",
+            "ES": "<|es|>",
+            "FR": "<|fr|>",
+            "IT": "<|it|>",
+            "JA": "<|ja|>",
+            "KO": "<|ko|>",
+            "UNKNOWN": "<|unknown|>"
+        },
+        "TS": "<|notimestamps|>",
+        "WLT": "vocal"
+    }
+}

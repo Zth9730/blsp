@@ -24,9 +24,11 @@ import os
 import sys
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional, Union, Tuple
+import evaluate
 
 import datasets
 from datasets import interleave_datasets
+from transformers.models.whisper.english_normalizer import BasicTextNormalizer
 
 import evaluate
 import torch
@@ -35,8 +37,10 @@ import transformers
 from transformers import (
     HfArgumentParser,
     TrainingArguments,
+    Seq2SeqTrainingArguments,
     Trainer,
     set_seed,
+    Seq2SeqTrainer
 )
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
 from transformers import LlamaTokenizer, LlamaForCausalLM, LlamaConfig, WhisperConfig, WhisperFeatureExtractor, Wav2Vec2FeatureExtractor
@@ -46,11 +50,11 @@ from src.speech_text_paired_dataset import load_speech_text_paired_dataset, Spee
 from src.modeling_blsp import BlspModel
 from src.modeling_whisper_encoder import WhisperEncoder
 from src.configuration_blsp import BlspConfig
-
+from src.owntoken import SPECIA_TOKENS, WLT
 
 logger = logging.getLogger(__name__)
 
-
+import os
 @dataclass
 class ModelArguments:
     """
@@ -99,8 +103,10 @@ def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+
+    # training_args.local_rank = int(os.environ["LOCAL_RANK"])
 
     # 2. Setup logging
     logging.basicConfig(
@@ -149,46 +155,25 @@ def main():
     # Set seed before initializing model.
     set_seed(training_args.seed)
     
-    whisper_config = WhisperConfig.from_pretrained(model_args.whisper_model)
-    llama_config = LlamaConfig.from_pretrained(model_args.llama_model)
-    blsp_config = BlspConfig(
-        whisper_config.to_dict(),
-        llama_config.to_dict()
-    )
-
     # 4. Load tokenizer
-    tokenizer = LlamaTokenizer.from_pretrained(model_args.llama_model)
-    if blsp_config.speech_encoder == 'whisper':
-        extractor = WhisperFeatureExtractor.from_pretrained(model_args.whisper_model)
-    elif blsp_config.speech_encoder == 'mms':
-        extractor = Wav2Vec2FeatureExtractor.from_pretrained("/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/pretrained_models/mms-1b")
+    tokenizer = LlamaTokenizer.from_pretrained('pretrained_models/llama2-7b-hf')
+    new_embedding_nums = 0
+    new_embedding_nums += tokenizer.add_special_tokens({'additional_special_tokens': SPECIA_TOKENS})
+    new_embedding_nums += tokenizer.add_special_tokens({'additional_special_tokens': [val for val in WLT.values()]})
+
+    extractor = WhisperFeatureExtractor.from_pretrained('pretrained_models/whisper-small')
+    # elif blsp_config.speech_encoder == 'mms':
+    #     extractor = Wav2Vec2FeatureExtractor.from_pretrained("/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/pretrained_models/mms-1b")
 
     ### 5. Load dataset
     
-    if data_args.data2 == "":
-        dataset = load_speech_text_paired_dataset(
-            dataroot=data_args.data,
-            manifest_files=data_args.manifest_files,
-            tokenizer=tokenizer,
-            instruction=data_args.instruction
-        )
+    dataset = load_speech_text_paired_dataset(
+        dataroot=data_args.data,
+        manifest_files=data_args.manifest_files,
+        tokenizer=tokenizer,
+        instruction=data_args.instruction
+    )
     
-    else:
-        dataset_1 = load_speech_text_paired_dataset(
-            dataroot=data_args.data,
-            manifest_files=data_args.manifest_files,
-            tokenizer=tokenizer,
-            instruction=data_args.instruction,
-            iterable=False
-        )
-        dataset_2 = load_speech_text_paired_dataset(
-            dataroot=data_args.data2,
-            manifest_files=data_args.manifest_files,
-            tokenizer=tokenizer,
-            instruction=data_args.instruction,
-            iterable=False
-        )
-        dataset = interleave_datasets([dataset_1, dataset_2], probabilities=[0.5, 0.5], seed=42)
 
     # 6. Load pretrained model
     #
@@ -196,14 +181,23 @@ def main():
     # The .from_pretrained methods guarantee that only one local process can concurrently
 
 
-    model = BlspModel(blsp_config)
-    # model.whisper_model = WhisperEncoder.from_pretrained(model_args.whisper_model)
-    model.llama_model = LlamaForCausalLM.from_pretrained(model_args.llama_model, _fast_init=not is_deepspeed_zero3_enabled())
+    model = BlspModel.from_pretrained('/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/checkpoints/multitask_now_4/checkpoint-96400/', new_embedding_nums)
 
-    for name, param in model.whisper_model.named_parameters():
-        param.requires_grad = False
-    for name, param in model.llama_model.named_parameters():
-        param.requires_grad = False
+    # model.whisper_model = WhisperEncoder.from_pretrained(model_args.whisper_model)
+    # model.llama_model = LlamaForCausalLM.from_pretrained(model_args.llama_model, _fast_init=not is_deepspeed_zero3_enabled())
+    
+    # model.llama_model.resize_token_embeddings(len(tokenizer))
+    
+    
+    # if blsp_config.stage == 'multi-task':
+    #     for name, param in model.llama_model.named_parameters():
+    #         param.requires_grad = False
+    #     model.llama_model.model.embed_tokens.new_weight.requires_grad = True
+    #     model.llama_model.lm_head.new_weight.requires_grad = True
+        
+    # elif blsp_config.stage == 'chat':
+    #     for name, param in model.whisper_model.named_parameters():
+    #         param.requires_grad = False
 
     # 6. Define data collator
     data_collator = SpeechTextPairedDataCollator(
@@ -214,34 +208,54 @@ def main():
 
 
     # 7. Initialize Trainer
-    trainer = Trainer(
+    metric = evaluate.load("wer")
+    normalizer = BasicTextNormalizer()
+    
+    def compute_metrics(pred):
+        import pdb
+        pdb.set_trace()
+        pred_ids = pred.predictions
+        label_ids = pred.label_ids
+
+        # replace -100 with the pad_token_id
+        label_ids[label_ids == -100] = tokenizer.pad_token_id
+
+        # we do not want to group tokens when computing the metrics
+        pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+        label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
+
+        # compute orthographic wer
+        wer_ortho = 100 * metric.compute(predictions=pred_str, references=label_str)
+        # compute normalised WER
+        pred_str_norm = [normalizer(pred) for pred in pred_str]
+        label_str_norm = [normalizer(label) for label in label_str]
+        # filtering step to only evaluate the samples that correspond to non-zero references:
+        pred_str_norm = [
+            pred_str_norm[i] for i in range(len(pred_str_norm)) if len(label_str_norm[i]) > 0
+        ]
+        label_str_norm = [
+            label_str_norm[i]
+            for i in range(len(label_str_norm))
+            if len(label_str_norm[i]) > 0
+        ]
+
+        wer = 100 * metric.compute(predictions=pred_str_norm, references=label_str_norm)
+
+        return {"wer_ortho": wer_ortho, "wer": wer}
+
+    tester = Seq2SeqTrainer(
         model=model,
         args=training_args,
         train_dataset=dataset,
+        eval_dataset=dataset,
         data_collator=data_collator,
+        compute_metrics=compute_metrics,
+        tokenizer=tokenizer
     )
 
     # 8. Training
-    if training_args.do_train:
-        checkpoint = None
-        if training_args.resume_from_checkpoint is not None:
-            checkpoint = training_args.resume_from_checkpoint
-        elif last_checkpoint is not None:
-            checkpoint = last_checkpoint
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
-        
-        trainer.save_model()
-        trainer.log_metrics("train", train_result.metrics)
-        trainer.save_metrics("train", train_result.metrics)
-        trainer.save_state()
-
-    results = {}
-    # 9. Save tokenizer for inference load
-    tokenizer.save_pretrained(training_args.output_dir)
-    extractor.save_pretrained(training_args.output_dir)
-
-    return results
-
+    output = tester.evaluate()
+    print(output)
 
 if __name__ == "__main__":
     main()

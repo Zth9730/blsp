@@ -10,7 +10,7 @@ class BlspConfig(PretrainedConfig):
         self, 
         whisper_config=None, 
         llama_config=None,
-        conv_kernel_sizes="5,5,5",
+        conv_kernel_sizes="5",
         adapter_inner_dim=512,
         **kwargs
     ):
@@ -29,3 +29,6 @@ class BlspConfig(PretrainedConfig):
 
         self.conv_kernel_sizes = conv_kernel_sizes
         self.adapter_inner_dim = adapter_inner_dim
+        self.moe = False
+        self.speech_encoder = 'whisper'
+        self.stage = 'multi-task' # multi-task or chat

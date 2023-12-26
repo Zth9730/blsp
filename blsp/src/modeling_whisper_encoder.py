@@ -37,7 +37,7 @@ class WhisperEncoder(HFWhisperEncoder):
 
     def forward(
         self,
-        input_features,
+        input_values,
         attention_mask=None,
         head_mask=None,
         output_attentions=None,
@@ -45,7 +45,7 @@ class WhisperEncoder(HFWhisperEncoder):
         return_dict=None,
     ):
         output = super().forward(
-            input_features,
+            input_values,
             attention_mask,
             head_mask,
             output_attentions,

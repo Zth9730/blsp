@@ -164,31 +164,20 @@ def main():
         extractor = Wav2Vec2FeatureExtractor.from_pretrained("/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/pretrained_models/mms-1b")
 
     ### 5. Load dataset
+    dataset = load_speech_text_paired_dataset(
+        dataroot=data_args.data,
+        manifest_files=data_args.manifest_files,
+        tokenizer=tokenizer,
+        instruction=data_args.instruction
+    )
     
-    if data_args.data2 == "":
-        dataset = load_speech_text_paired_dataset(
-            dataroot=data_args.data,
-            manifest_files=data_args.manifest_files,
-            tokenizer=tokenizer,
-            instruction=data_args.instruction
-        )
-    
-    else:
-        dataset_1 = load_speech_text_paired_dataset(
-            dataroot=data_args.data,
-            manifest_files=data_args.manifest_files,
-            tokenizer=tokenizer,
-            instruction=data_args.instruction,
-            iterable=False
-        )
-        dataset_2 = load_speech_text_paired_dataset(
-            dataroot=data_args.data2,
-            manifest_files=data_args.manifest_files,
-            tokenizer=tokenizer,
-            instruction=data_args.instruction,
-            iterable=False
-        )
-        dataset = interleave_datasets([dataset_1, dataset_2], probabilities=[0.5, 0.5], seed=42)
+    # dataset_2 = load_speech_text_paired_dataset(
+    #     dataroot=data_args.data2,
+    #     manifest_files=data_args.manifest_files,
+    #     tokenizer=tokenizer,
+    #     instruction=data_args.instruction
+    # )
+    # dataset = interleave_datasets([dataset, dataset_2], probabilities=[0.5, 0.5], seed=42)
 
     # 6. Load pretrained model
     #
@@ -228,7 +217,7 @@ def main():
             checkpoint = training_args.resume_from_checkpoint
         elif last_checkpoint is not None:
             checkpoint = last_checkpoint
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        # train_result = trainer.train(resume_from_checkpoint=checkpoint)
         
         trainer.save_model()
         trainer.log_metrics("train", train_result.metrics)
