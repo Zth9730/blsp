@@ -81,11 +81,9 @@ model_path = "checkpoints/multitask_20240118_whisper_v3_internlm2_large_bn3_resu
 # model_path = "checkpoints/multitask_20240118_whisper_v3_internlm2_large_bn3_resume_debug_shuf_5_emo_train/checkpoint-2000"
 model_path = "checkpoints/multitask_20240118_whisper_v3_internlm2_large_bn3_resume_debug_shuf_4_caption_train/average_checkpoint"
 model_path = "checkpoints/multitask_20240118_whisper_v3_internlm2_large_bn3_resume_debug_shuf_5_emo_train_debug_sp/checkpoint-1000"
-model_path = "checkpoints/20240118_shuf_5_shuf_train_debug_sp/checkpoint-103000"
-# model_path = "checkpoints/only_for_caption_2_no_sp/checkpoint-111000"
-model_path = "checkpoints/only_for_caption_2_sp_addaudiocaps/checkpoint-51000"
-model_path = "checkpoints/debug_caption_2/checkpoint-16000"
-model_path = "checkpoints/debug_caption_2/checkpoint-56000"
+model_path = "checkpoints/20240118_shuf_5_shuf_train_debug_sp/checkpoint-86000"
+model_path = "checkpoints/only_for_caption_2_no_sp/checkpoint-111000"
+model_path = "checkpoints/only_for_caption_2_no_sp_llama2_2/checkpoint-2000"
 # model_path = "checkpoints/fbank_asr/checkpoint-14000"
 # model_path = "checkpoints/multitask_20240118_whisper_v3_internlm2_large_bn3_resume_debug_shuf_5_emo_train/average_checkpoint"
 os.environ['HF_EVALUATE_OFFLINE'] = '1'
@@ -194,7 +192,7 @@ logger = setup_logger(logger_file_name)
 if data_path == "data/internlm2_evaluate/ClothAQA_all":
     batch_size = 1
 else:
-    batch_size=10
+    batch_size=32
     
 generation_config = GenerationConfig(
     max_new_tokens=128,
@@ -207,7 +205,7 @@ generation_config = GenerationConfig(
 )
 
 def main():
-    tokenizer = AutoTokenizer.from_pretrained('pretrained_models/internlm2-7b', trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained('pretrained_models/llama2-hf-7b', trust_remote_code=True)
     new_embedding_nums = tokenizer.add_special_tokens({"additional_special_tokens": SPECIA_TOKENS + [val for val in WLT.values()]})
     generation_config.update(
         **{

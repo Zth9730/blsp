@@ -23,7 +23,10 @@ class WhisperEncoder(HFWhisperEncoder):
 
     def from_pretrained(model_path):
         config = WhisperConfig.from_pretrained(model_path)
-
+        
+        # spec_augment
+        config.apply_spec_augment = False
+        
         model = WhisperEncoder(config)
         old_state_dict = torch.load(os.path.join(model_path, "pytorch_model.bin"))
         state_dict = {}
@@ -34,7 +37,7 @@ class WhisperEncoder(HFWhisperEncoder):
         model.load_state_dict(state_dict)
 
         return model
-
+    
     def forward(
         self,
         input_values,

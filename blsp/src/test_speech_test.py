@@ -2,9 +2,8 @@ import os
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, BinaryIO
-import fire
 import soundfile as sf
-from tqdm import tqdm
+import torchaudio
 import io
 from petrel_client.client import Client
 
@@ -21,8 +20,9 @@ from dataclasses import dataclass
 import subprocess
 from transformers import LlamaTokenizer, WhisperFeatureExtractor, AutoTokenizer
 from datasets import IterableDataset, interleave_datasets, concatenate_datasets
-
+import json
 logger = logging.getLogger(__name__)
+
 
 class MyClient(object):
     def __init__(self):
@@ -36,10 +36,6 @@ class MyClient(object):
             return self.client.get("asr:s3://{}/".format(bucket) + new_key, no_cache=True, enable_stream=enable_stream)
         elif bucket == "youtubeBucket":
             return self.client.get("youtube:s3://{}/".format(bucket) + new_key, no_cache=True, enable_stream=enable_stream)
-        elif bucket == "tts":
-            return self.client.get("tts:s3://{}/".format(bucket) + new_key, no_cache=True, enable_stream=enable_stream)
-        elif bucket == "ASR_20T":
-            return self.client.get("tts_asr:s3://{}/".format(bucket) + new_key, no_cache=True, enable_stream=enable_stream)
         elif bucket == 's3:':
             return self.client.get("asr:{}".format(key), no_cache=True, enable_stream=enable_stream)
         else:
@@ -113,14 +109,13 @@ class MyClient(object):
 
 def process_dataset_multitask(batch, tokenizer):
     # tag: SOT-AL-TT-TL-TS-WLT 
-
     client = MyClient()
     audio_path = batch["audio"]
     try:
         s3b = client.get(audio_path)
         with io.BytesIO(s3b) as fobj: 
-            waveform, sample_rate = sf.read(fobj)
-            if len(waveform) / sample_rate >= 30 and batch['task'] in ["ASR", "S2TT", "DASR"]:
+            info = sf.info(fobj)
+            if info.duration >= 30 and batch['task'] in ["ASR", "S2TT", "DASR"]:
                 is_readable = False 
             else:
                 is_readable = True
@@ -155,10 +150,7 @@ def process_dataset_multitask(batch, tokenizer):
         multitask_tag_ids += wlt
     if batch['task'] == "AAC":
         dataset = batch["audio"].split("/")[2]
-        if dataset in tag_map['DID']:
-            aac_start = tokenizer(tag_map['DID'][dataset]).input_ids[1:]
-        else:
-            aac_start = tokenizer(tag_map['DID']['Clotho']).input_ids[1:]
+        aac_start = tokenizer(tag_map['DID'][dataset]).input_ids[1:]
         multitask_tag_ids += aac_start
     elif batch['task'] == "IC":
         dataset = batch["audio"].split("/")[2]
@@ -236,88 +228,33 @@ def process_dataset_multitask(batch, tokenizer):
     return batch
 
 
-# def process_dataset_multitask_test(batch, tokenizer):
-#     # tag: SOT-AL-TT-TL-TS-WLT 
-#     client = MyClient()
-#     audio_path = batch["audio"]
-#     try:
-#         s3b = client.get(audio_path)
-#         with io.BytesIO(s3b) as fobj: 
-#             info = sf.info(fobj)
-#             if info.duration >= 30 and batch['task'] in ["ASR", "S2TT"]:
-#                 is_readable = False 
-#             else:
-#                 is_readable = True
-#     except:
-#         is_readable = False
-
-#     input_ids = [tokenizer.bos_token_id] + tokenizer("<speech>").input_ids[1:]
-#     attention_mask = [1] * len(input_ids)
-    
-    
-#     # end of speech tag: </speech>
-#     suffix_input_ids = tokenizer('</speech>').input_ids[1:]
-#     suffix_attention_mask = [1] * len(suffix_input_ids)
-    
-#     # multi-task tag
-#     multitask_tag_ids = []
-#     tag_map = TASK_SPECIFIC_TAG[batch['task']]
-
-#     sot_ids = tokenizer(tag_map['SOT']).input_ids[1:]
-#     multitask_tag_ids += sot_ids
-#     audio_language = tokenizer(tag_map['AL'][batch['audio_language']]).input_ids[1:]
-#     multitask_tag_ids += audio_language
-#     task_tag = tokenizer(tag_map['TT']).input_ids[1:]
-#     multitask_tag_ids += task_tag
-#     text_language = tokenizer(tag_map['TL'][batch['text_language']]).input_ids[1:]
-#     multitask_tag_ids += text_language
-#     timestamps = tokenizer(tag_map['TS']).input_ids[1:]
-#     multitask_tag_ids += timestamps
-#     wlt = tokenizer(WLT[batch['task']]).input_ids[1:]
-#     multitask_tag_ids += wlt
-    
-#     suffix_input_ids += multitask_tag_ids
-#     suffix_attention_mask += [1] * len(multitask_tag_ids)
-
-#     # ground_truth
-#     ground_truth_ids = tokenizer(batch["ground_truth"]).input_ids[1:] + [tokenizer.eos_token_id]
-
-#     batch["input_ids"] = input_ids
-#     batch["attention_mask"] = attention_mask
-#     batch["suffix_input_ids"] = suffix_input_ids
-#     batch["suffix_attention_mask"] = suffix_attention_mask
-#     batch["audio_path"] = audio_path
-#     batch["is_readable"] = is_readable
-#     batch["ground_truth_ids"] = ground_truth_ids
-#     return batch
-
 def process_dataset_multitask_test(batch, tokenizer):
+    # tag: SOT-AL-TT-TL-TS-WLT 
     client = MyClient()
     audio_path = batch["audio"]
     try:
         s3b = client.get(audio_path)
         with io.BytesIO(s3b) as fobj: 
-            waveform, sample_rate = sf.read(fobj)
-            if len(waveform) / sample_rate >= 30 and batch['task'] in ["ASR", "S2TT", "DASR"]:
+            info = sf.info(fobj)
+            if info.duration >= 30 and batch['task'] in ["ASR", "S2TT"]:
                 is_readable = False 
             else:
                 is_readable = True
     except:
         is_readable = False
 
-    input_ids = tokenizer("<speech>").input_ids
+    input_ids = [tokenizer.bos_token_id] + tokenizer("<speech>").input_ids[1:]
     attention_mask = [1] * len(input_ids)
-    labels = [-100] * len(input_ids)    
     
     
     # end of speech tag: </speech>
     suffix_input_ids = tokenizer('</speech>').input_ids[1:]
     suffix_attention_mask = [1] * len(suffix_input_ids)
-    suffix_labels = [-100] * len(suffix_input_ids)
     
     # multi-task tag
-    tag_map = TASK_SPECIFIC_TAG[batch['task']]
     multitask_tag_ids = []
+    tag_map = TASK_SPECIFIC_TAG[batch['task']]
+
     sot_ids = tokenizer(tag_map['SOT']).input_ids[1:]
     multitask_tag_ids += sot_ids
     audio_language = tokenizer(tag_map['AL'][batch['audio_language']]).input_ids[1:]
@@ -329,40 +266,13 @@ def process_dataset_multitask_test(batch, tokenizer):
     timestamps = tokenizer(tag_map['TS']).input_ids[1:]
     multitask_tag_ids += timestamps
     wlt = tokenizer(WLT[batch['task']]).input_ids[1:]
-    if batch['task'] not in ["AAC", "AQA", "SV", "IC"]:
-        multitask_tag_ids += wlt
-    if batch['task'] == "AAC":
-        dataset = batch["audio"].split("/")[2]
-        if dataset in tag_map['DID']:
-            aac_start = tokenizer(tag_map['DID'][dataset]).input_ids[1:]
-        else:
-            aac_start = tokenizer(tag_map['DID']['WavCaps']).input_ids[1:]
-        multitask_tag_ids += aac_start
-    elif batch['task'] == "IC":
-        dataset = batch["audio"].split("/")[2]
-        ic_start = tokenizer(tag_map['DID'][dataset]).input_ids[1:]
-        multitask_tag_ids += ic_start
-    elif batch["task"] == "SER":
-        start_entity_value = tokenizer("<|startofentityvalue|>").input_ids[1:]
-        multitask_tag_ids += start_entity_value
-
-    #without_inversed_normalize = tokenizer("<|wo_itn|>").input_ids[1:]
-    #suffix_input_ids += without_inversed_normalize
-
+    multitask_tag_ids += wlt
+    
     suffix_input_ids += multitask_tag_ids
     suffix_attention_mask += [1] * len(multitask_tag_ids)
-    # suffix_labels += [-100] * len(multitask_tag_ids)
-    suffix_labels += multitask_tag_ids
 
-    if batch["task"] == "AQA":
-        quesition = tokenizer("<|question|>").input_ids[1:]
-        aqa_ground_truth_ids_prefix = quesition + tokenizer(batch["ground_truth"].split("_")[0]).input_ids[1:]
-        aqa_ground_truth_ids_suffix = tokenizer("<|answer|>").input_ids[1:] + tokenizer(batch["ground_truth"].split("_")[-1]).input_ids[1:] + [tokenizer.eos_token_id]
-        suffix_input_ids += aqa_ground_truth_ids_prefix
-        suffix_attention_mask += [1] * len(aqa_ground_truth_ids_prefix)
-        ground_truth_ids = aqa_ground_truth_ids_suffix
-    else:
-        ground_truth_ids = tokenizer(batch["ground_truth"]).input_ids[1:] + [tokenizer.eos_token_id]
+    # ground_truth
+    ground_truth_ids = tokenizer(batch["ground_truth"]).input_ids[1:] + [tokenizer.eos_token_id]
 
     batch["input_ids"] = input_ids
     batch["attention_mask"] = attention_mask
@@ -430,128 +340,64 @@ def load_speech_text_paired_dataset(dataroot="",
     multitask=True,
     training=True,):
     
-    if training:
-        dataset_list = "data/20240118/data2.list"
-        dataset_list = "data/20240118/two_interlive.list"
-        dataset_list = 'data/for_evaluate.list'
-        # dataset_list = 'data/tts_asr_sample.list'
-        dataset_list = "data/shuf_data.list"
-        # dataset_list = "data/only_caption_train.list"
-        # dataset_list = "data/audioset_caption.list"
-        # dataset_list = "data/all_emotion.list"
-        # dataset_list = "data/librispeech_wo_itn.list"
-        # dataset_list = "data/ns.list"
-        # dataset_list = "data/only_caption_train.list"
-        dataset_list = "data/librispeech_wo_itn.list"
+    dataset_list = "data/20240118/data.list"
+    all_datasets = []
+    with open(dataset_list) as f:
+        for s in f:
+            sub_dataset = s.strip()
+            if os.path.exists(os.path.join(sub_dataset, f"processed_{manifest_files}".replace("*", "all"))):
+                if iterable:
+                    dataset = IterableDataset.load_from_disk(os.path.join(sub_dataset, f"processed_{manifest_files}".replace("*", "all")))
+                    return dataset
+                dataset = datasets.load_from_disk(os.path.join(sub_dataset, f"processed_{manifest_files}".replace("*", "all")))
+                if shuffle:
+                    dataset = dataset.shuffle(seed=42)
+            else:
+                logger.warning(f"load dataset from scratch from {sub_dataset}/{manifest_files}")
 
-        all_datasets = []
-        with open(dataset_list) as f:
-            for s in f:
-                sub_dataset = s.strip()
-                if os.path.exists(os.path.join(sub_dataset, f"processed_{manifest_files}".replace("*", "all"))):
-                    if iterable:
-                        dataset = IterableDataset.load_from_disk(os.path.join(sub_dataset, f"processed_{manifest_files}".replace("*", "all")))
-                        return dataset
-                    dataset = datasets.load_from_disk(os.path.join(sub_dataset, f"processed_{manifest_files}".replace("*", "all")))
-                    if shuffle:
-                        dataset = dataset.shuffle(seed=42)
+                manifest_files_list = manifest_files.split(",")
+                raw_dataset = datasets.load_dataset(
+                    sub_dataset, data_files=manifest_files_list, split="train", streaming=False
+                )
+
+                if multitask:
+                    dataset = raw_dataset.map(
+                        process_dataset_multitask if training else process_dataset_multitask_test,
+                        fn_kwargs={
+                            "tokenizer": tokenizer,
+                        },
+                        remove_columns=raw_dataset.column_names,
+                        load_from_cache_file=False,
+                        num_proc=128,
+                    )
                 else:
-                    logger.warning(f"load dataset from scratch from {sub_dataset}/{manifest_files}")
+                    dataset = raw_dataset.map(
+                        process_dataset,
+                        fn_kwargs={
+                            "tokenizer": tokenizer,
+                            "instructions": instruction
+                        },
+                        remove_columns=raw_dataset.column_names,
+                        load_from_cache_file=False,
+                        num_proc=num_proc,
+                    )       
 
-                    manifest_files_list = manifest_files.split(",")
-                    raw_dataset = datasets.load_dataset(
-                        sub_dataset, data_files=manifest_files_list, split="train", streaming=False
-                    )
+                def is_readable(flag):
+                    return flag
+                
+                dataset = dataset.filter(
+                    is_readable,
+                    input_columns=["is_readable"]
+                )
 
-                    if multitask:
-                        dataset = raw_dataset.map(
-                            process_dataset_multitask,
-                            fn_kwargs={
-                                "tokenizer": tokenizer,
-                            },
-                            remove_columns=raw_dataset.column_names,
-                            load_from_cache_file=False,
-                            num_proc=128,
-                        )
-                    else:
-                        dataset = raw_dataset.map(
-                            process_dataset,
-                            fn_kwargs={
-                                "tokenizer": tokenizer,
-                                "instructions": instruction
-                            },
-                            remove_columns=raw_dataset.column_names,
-                            load_from_cache_file=False,
-                            num_proc=num_proc,
-                        )       
+                dataset.save_to_disk(os.path.join(sub_dataset, f"processed_{manifest_files}".replace("*", "all")))  
+                
+            all_datasets.append(dataset)
+    
+    # interleave_dataset = interleave_datasets(all_datasets, stopping_strategy="all_exhausted")
+    interleave_dataset = concatenate_datasets(all_datasets)
+    return interleave_dataset
 
-                    def is_readable(flag):
-                        return flag
-                    
-                    dataset = dataset.filter(
-                        is_readable,
-                        input_columns=["is_readable"]
-                    )
-
-                    dataset.save_to_disk(os.path.join(sub_dataset, f"processed_{manifest_files}".replace("*", "all")))  
-                    
-                all_datasets.append(dataset)
-        
-        # interleave_dataset = interleave_datasets(all_datasets, stopping_strategy="all_exhausted")
-        interleave_dataset = concatenate_datasets(all_datasets)
-        return interleave_dataset
-    else:
-        if os.path.exists(os.path.join(dataroot, f"processed_{manifest_files}".replace("*", "all"))):
-            logger.warning("load processed dataset")
-            if iterable:
-                dataset = IterableDataset.load_from_disk(os.path.join(dataroot, f"processed_{manifest_files}".replace("*", "all")))
-                return dataset
-            dataset = datasets.load_from_disk(os.path.join(dataroot, f"processed_{manifest_files}".replace("*", "all")))
-            if shuffle:
-                dataset = dataset.shuffle(seed=42)
-            return dataset
-        
-        logger.warning(f"load dataset from scratch from {dataroot}/{manifest_files}")
-
-        manifest_files_list = manifest_files.split(",")
-        raw_dataset = datasets.load_dataset(
-            dataroot, data_files=manifest_files_list, split="train", streaming=False
-        )
-
-        if multitask:
-            dataset = raw_dataset.map(
-                process_dataset_multitask_test,
-                fn_kwargs={
-                    "tokenizer": tokenizer,
-                },
-                remove_columns=raw_dataset.column_names,
-                load_from_cache_file=False,
-                num_proc=128,
-            )
-        else:
-            dataset = raw_dataset.map(
-                process_dataset,
-                fn_kwargs={
-                    "tokenizer": tokenizer,
-                    "instructions": instruction
-                },
-                remove_columns=raw_dataset.column_names,
-                load_from_cache_file=False,
-                num_proc=num_proc,
-            )       
-
-        def is_readable(flag):
-            return flag
-        
-        dataset = dataset.filter(
-            is_readable,
-            input_columns=["is_readable"]
-        )
-
-        dataset.save_to_disk(os.path.join(dataroot, f"processed_{manifest_files}".replace("*", "all")))
-
-        return dataset
-        
 # def load_speech_text_paired_dataset(
 #     dataroot="",
 #     manifest_files="",
@@ -668,6 +514,7 @@ def get_waveform(
         waveform, sample_rate = sf.read(
             fobj, dtype="float32", always_2d=True, frames=frames, start=start
         )
+        
     if len(waveform) / sample_rate > 30:
         size = len(waveform)
         target_size = 30 * sample_rate
@@ -811,9 +658,23 @@ def offline_process(
             print(key, dataset[0][key])
     print(len(dataset))
 
-
+from tqdm import tqdm
 if __name__ == "__main__":
-    fire.Fire({
-        "offline": offline_process,
-    })
+    dataset_list = "data/20240118/data.list"
+    all_datasets = []
+    raw = get_waveform("exp/speech_llm/WavCaps/data/waveforms/AudioSet_SL/YVcu0pVF1npM.flac", output_sample_rate=16000)
+    exit()
+    with open(dataset_list) as f:
+        for s in f:
+            sub_dataset = s.strip()
+            files = [f for f in os.listdir(sub_dataset) if os.path.isfile(os.path.join(sub_dataset, f))]
+            for file in files:
+                with open(os.path.join(sub_dataset,file)) as f_json:
+                    for l in tqdm(f_json):
+                        data = json.loads(l)
+                        try:
+                            raw_speech = get_waveform(data["audio"], output_sample_rate=16000)
+                        except:
+                            print(data['task'])
+                            print(data["audio"])
     

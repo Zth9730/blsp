@@ -25,10 +25,14 @@ class BlspConfig(PretrainedConfig):
             logger.info("llama config is None. Initializing the LlamaConfig with default values")
         
         self.whisper_config = WhisperConfig(**whisper_config).to_dict()
+        self.whisper_config['apply_spec_augment'] = True
+        self.whisper_config['mask_feature_prob'] = 0.05
+        self.whisper_config['mask_feature_min_masks'] = 2
         self.llama_config = LlamaConfig(**llama_config).to_dict()
 
         self.conv_kernel_sizes = conv_kernel_sizes
         self.adapter_inner_dim = adapter_inner_dim
         self.moe = False
         self.speech_encoder = 'whisper'
-        self.stage = 'multi-task' # multi-task or chat
+        self.stage = 'only_adapter' # multi-task or chat
+        self.use_fbank = False

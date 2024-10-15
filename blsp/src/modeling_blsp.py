@@ -6,10 +6,11 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
 
-from transformers import PreTrainedModel, LlamaForCausalLM
+from transformers import PreTrainedModel, LlamaForCausalLM, AutoModelForCausalLM
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers import LlamaConfig, WhisperConfig
 from transformers.deepspeed import is_deepspeed_zero3_enabled
+from transformers.models.whisper.modeling_whisper import _compute_mask_indices
 
 from transformers import Wav2Vec2Model, AutoProcessor
 
@@ -22,8 +23,10 @@ except:
     from modeling_whisper_encoder import WhisperEncoder
     from moe_layer import MoELayer
 
-def lengths_to_padding_mask(lens):
-    bsz, max_lens = lens.size(0), torch.max(lens).item()
+def lengths_to_padding_mask(lens, max_lens=None):
+    if max_lens is None:
+        max_lens = torch.max(lens).item()
+    bsz = lens.size(0)
     mask = torch.arange(max_lens).to(lens.device).view(1, max_lens)
     mask = mask.expand(bsz, -1) >= lens.view(bsz, 1).expand(-1, max_lens)
     return mask
@@ -169,13 +172,23 @@ class BlspModel(PreTrainedModel):
             self.whisper_model = Wav2Vec2Model.from_pretrained("/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/pretrained_models/mms-1b", _fast_init=not is_deepspeed_zero3_enabled())
             in_d = self.whisper_model.config.hidden_size
 
-        self.llama_model = LlamaForCausalLM.from_pretrained('/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/pretrained_models/llama2-7b-hf', _fast_init=not is_deepspeed_zero3_enabled())
-        selected_params = ['model.embed_tokens.weight', 'lm_head.weight']
+        self.llama_model = AutoModelForCausalLM.from_pretrained('/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/pretrained_models/internlm2-7b', trust_remote_code=True, _fast_init=not is_deepspeed_zero3_enabled())
+        # self.llama_model = AutoModelForCausalLM.from_pretrained('/mnt/petrelfs/zhoudinghao/work/thzhang/blsp/pretrained_models/llama2-hf-7b', trust_remote_code=True, _fast_init=not is_deepspeed_zero3_enabled())
+
+        self.llm_type = "internlm"
+        if self.llm_type == "llama":
+            selected_params = ['model.embed_tokens.weight', 'lm_head.weight']
+        elif self.llm_type == "internlm":
+            selected_params = ['model.tok_embeddings.weight', 'output.weight']
         state_dict = self.llama_model.state_dict()
         selected_state_dict = {k: v for k, v in state_dict.items() if k in selected_params}
         if new_embedding_nums > 0:
-            self.llama_model.model.embed_tokens = PartiallyTrainedEmbedding(new_embedding_nums, *self.llama_model.model.embed_tokens.weight.shape, self.llama_model.model.embed_tokens.padding_idx)
-            self.llama_model.lm_head = PartiallyTrainedLMHead(new_embedding_nums, *self.llama_model.model.embed_tokens.weight.shape[::-1], bias=False)
+            if self.llm_type == "llama":
+                self.llama_model.model.embed_tokens = PartiallyTrainedEmbedding(new_embedding_nums, *self.llama_model.model.embed_tokens.weight.shape, self.llama_model.model.embed_tokens.padding_idx)
+                self.llama_model.lm_head = PartiallyTrainedLMHead(new_embedding_nums, *self.llama_model.model.embed_tokens.weight.shape[::-1], bias=False)
+            else:
+                self.llama_model.model.tok_embeddings = PartiallyTrainedEmbedding(new_embedding_nums, *self.llama_model.model.tok_embeddings.weight.shape, self.llama_model.model.tok_embeddings.padding_idx)
+                self.llama_model.output = PartiallyTrainedLMHead(new_embedding_nums, *self.llama_model.model.tok_embeddings.weight.shape[::-1], bias=False)
             self.llama_model.load_state_dict(selected_state_dict, strict=False)
             self.llama_model.config.vocab_size += new_embedding_nums
             self.llama_model.vocab_size += new_embedding_nums
@@ -186,9 +199,65 @@ class BlspModel(PreTrainedModel):
             out_d,
             [int(k) for k in config.conv_kernel_sizes.split(",")],
         )
+        self.use_fbank = config.use_fbank
+        if self.use_fbank:
+            self.fbank_downsample = Conv1dSubsampler(
+                            128,
+                            2 * 128,
+                            1024,
+                            [int(k) for k in config.conv_kernel_sizes.split(",")],
+                        )
+            
+            self.fbank_adapter = torch.nn.Linear(1024, 4096)
+
         self.speech_ln = torch.nn.LayerNorm(out_d, 1e-5, True)
         self.adapter = Adapter(out_d, config.adapter_inner_dim, moe=config.moe)
     
+    def _mask_input_features(
+        self,
+        input_features: torch.FloatTensor,
+        attention_mask: Optional[torch.LongTensor] = None,
+    ):
+        """
+        Masks extracted features along time axis and/or along feature axis according to
+        [SpecAugment](https://arxiv.org/abs/1904.08779).
+        """
+
+        # `config.apply_spec_augment` can set masking to False
+        if not getattr(self.whisper_config, "apply_spec_augment", True):
+            return input_features
+
+        # generate indices & apply SpecAugment along time axis
+        batch_size, hidden_size, sequence_length = input_features.size()
+
+        if self.whisper_config.mask_time_prob > 0 and self.training:
+            # generate indices & apply SpecAugment along time axis
+            mask_time_indices = _compute_mask_indices(
+                (batch_size, sequence_length),
+                mask_prob=self.whisper_config.mask_time_prob,
+                mask_length=self.whisper_config.mask_time_length,
+                attention_mask=attention_mask,
+                min_masks=self.whisper_config.mask_time_min_masks,
+            )
+            mask_time_indices = torch.tensor(mask_time_indices, device=input_features.device, dtype=torch.bool)
+            mask_time_indices = mask_time_indices[:, None].expand(-1, hidden_size, -1)
+            input_features[mask_time_indices] = 0
+
+        if self.whisper_config.mask_feature_prob > 0 and self.training:
+            # generate indices & apply SpecAugment along feature axis
+            mask_feature_indices = _compute_mask_indices(
+                (batch_size, hidden_size),
+                mask_prob=self.whisper_config.mask_feature_prob,
+                mask_length=self.whisper_config.mask_feature_length,
+                min_masks=self.whisper_config.mask_feature_min_masks,
+            )
+            mask_feature_indices = torch.tensor(mask_feature_indices, device=input_features.device, dtype=torch.bool)
+            input_features[mask_feature_indices] = 0
+
+        return input_features
+    
+
+
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -207,50 +276,65 @@ class BlspModel(PreTrainedModel):
         suffix_attention_mask: Optional[torch.LongTensor] = None,
         suffix_labels: Optional[torch.LongTensor] = None,
     ):
-
         ### 1. forward speech
+        
         speech_embeds, moe_loss, speech_attention_mask = self.get_speech_features(speech_values, speech_attention_mask)
         speech_labels = torch.LongTensor(speech_embeds.size(0), speech_embeds.size(1)).fill_(-100).to(speech_embeds.device)
 
         ### 2. forward llama
-        prefix_embeds = self.llama_model.model.embed_tokens(input_ids)
-        suffix_embeds = self.llama_model.model.embed_tokens(suffix_input_ids)
+        if self.llm_type == "llama":
+            prefix_embeds = self.llama_model.model.embed_tokens(input_ids)
+            suffix_embeds = self.llama_model.model.embed_tokens(suffix_input_ids)
+        else:
+            prefix_embeds = self.llama_model.model.tok_embeddings(input_ids)
+            suffix_embeds = self.llama_model.model.tok_embeddings(suffix_input_ids)
         
         inputs_embeds = torch.cat([prefix_embeds, speech_embeds, suffix_embeds], dim=1)
         attention_mask = torch.cat([attention_mask, speech_attention_mask, suffix_attention_mask], dim=1)
         labels = torch.cat([labels, speech_labels, suffix_labels], dim=1)
-
         output = self.llama_model(
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
             return_dict=True,
             labels=labels,
         )
+
         output['loss'] = output['loss'] + moe_loss
         return output
         
 
 
     def get_speech_features(self, speech_values, speech_attention_mask):
-        w2v_args = {
-            "input_values": speech_values,
-            "attention_mask": speech_attention_mask,
-        }
-
-        output = self.whisper_model(**w2v_args)
-        speech_embeds = output.last_hidden_state # B x T x C
-        if isinstance(self.whisper_model, WhisperEncoder):
-            speech_lengths = output.output_lengths
-        else:
+        if self.use_fbank:
+            speech_values = speech_values.transpose(-2, -1)
             input_lengths = speech_attention_mask.sum(-1)
-            speech_lengths = self.whisper_model._get_feat_extract_output_lengths(input_lengths)
+            speech_embeds, speech_lengths = self.fbank_downsample(speech_values, input_lengths)
+            speech_embeds = speech_embeds.transpose(0,1)
+            speech_padding_mask = lengths_to_padding_mask(speech_lengths, speech_embeds.shape[1])
+            speech_atts = ~speech_padding_mask
+            speech_embeds = self.fbank_adapter(speech_embeds)
+            moe_loss = 0
+        else:
+            w2v_args = {
+                "input_values": speech_values,
+                "attention_mask": speech_attention_mask,
+            }
+            input_values = self._mask_input_features(speech_values, speech_attention_mask)
+            w2v_args['input_values'] = input_values
+            output = self.whisper_model(**w2v_args)
+            speech_embeds = output.last_hidden_state # B x T x C
+            if isinstance(self.whisper_model, WhisperEncoder):
+                speech_lengths = output.output_lengths
+            else:
+                input_lengths = speech_attention_mask.sum(-1)
+                speech_lengths = self.whisper_model._get_feat_extract_output_lengths(input_lengths)
 
-        speech_embeds, speech_lengths = self.subsampler(speech_embeds, speech_lengths)
-        speech_embeds = speech_embeds.transpose(0,1) # T x B x C -> B x T x C
-        speech_padding_mask = lengths_to_padding_mask(speech_lengths)
-        speech_atts = ~speech_padding_mask
+            speech_embeds, speech_lengths = self.subsampler(speech_embeds, speech_lengths)
+            speech_embeds = speech_embeds.transpose(0,1) # T x B x C -> B x T x C
+            speech_padding_mask = lengths_to_padding_mask(speech_lengths)
+            speech_atts = ~speech_padding_mask
 
-        speech_embeds, moe_loss = self.adapter(speech_embeds)
+            speech_embeds, moe_loss = self.adapter(speech_embeds)
         speech_embeds = self.speech_ln(speech_embeds)
 
         return speech_embeds, moe_loss, speech_atts

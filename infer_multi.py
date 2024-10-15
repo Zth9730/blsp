@@ -21,7 +21,7 @@ from transformers import PreTrainedModel, LlamaForCausalLM, LlamaTokenizer
 def parse_args():
     parser = argparse.ArgumentParser(description="Speech-Language Demo")
     parser.add_argument(
-        "--blsp_model", type=str, default='checkpoints/20231211-traintag_newtag_4/checkpoint-30600'
+        "--blsp_model", type=str, default='checkpoints/multitask_20240108_interleave/checkpoint-10000'
     )
     ### args for generation
     parser.add_argument(
@@ -46,7 +46,7 @@ def parse_args():
 generation_config = GenerationConfig(
     max_new_tokens=128,
     min_new_tokens=1,
-    do_sample=False,
+    do_sample=True,
     temperature=0.9,
     top_p=0.75,
     num_beams=1,
@@ -72,7 +72,7 @@ class ChatHistory(object):
         )
 
     def add_text_history(self, text):
-        input_ids = self.tokenizer(text, return_tensors="pt").input_ids[:,2:].cuda()
+        input_ids = self.tokenizer(text, return_tensors="pt").input_ids[:,1:].cuda()
         self.history.append(
             (input_ids,)
         )
@@ -102,11 +102,8 @@ print('Initializing Chat')
 args = parse_args()
 
 tokenizer = LlamaTokenizer.from_pretrained('pretrained_models/llama2-7b-hf')
-new_embedding_nums = 0
-
-new_embedding_nums += tokenizer.add_tokens(SPECIA_TOKENS)
-new_embedding_nums += tokenizer.add_tokens([val for val in WLT.values()])
-extractor = WhisperFeatureExtractor.from_pretrained('pretrained_models/whisper-small')
+new_embedding_nums = tokenizer.add_special_tokens({"additional_special_tokens": SPECIA_TOKENS + [val for val in WLT.values()]})
+extractor = WhisperFeatureExtractor.from_pretrained('pretrained_models/whisper-large-v3')
 # model = LlamaForCausalLM.from_pretrained('pretrained_models/llama2-7b-hf')
 model = BlspModel.from_pretrained(args.blsp_model, new_embedding_nums)
 generation_config.update(
@@ -199,9 +196,9 @@ while True:
         #     speech_attention_mask=None,
         #     generation_config=generation_config
         # )
-        
         import pdb
         pdb.set_trace()
+
         output = model.chat(
             history=history.history,
             generation_config=generation_config,
